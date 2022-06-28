@@ -1,0 +1,11 @@
+*.exe
+*.lib
+*.dll
+*.so
+*.la
+*.o.d
+*.o
+*.a
+/nbproject/private/
+/build/
+/dist/
