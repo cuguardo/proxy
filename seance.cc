@@ -42,7 +42,7 @@ void seance::on_read(beast::error_code ec, std::size_t bytes_transferred)
         return fail(ec, "read");
 
     // Send the response
-    handle_request(*doc_root_, std::move(req_), action_);
+    handle_request(dict_, stream_.get_executor(), std::move(req_), action_);
 }
 
 void seance::on_write(bool close, beast::error_code ec, std::size_t bytes_transferred)

@@ -45,7 +45,7 @@ class seance : public std::enable_shared_from_this<seance>
 
     beast::tcp_stream stream_;
     beast::flat_buffer buffer_;
-    std::shared_ptr<std::string const> doc_root_;
+    std::shared_ptr<const dict_t> dict_;
     http::request<http::string_body> req_;
     std::shared_ptr<void> res_;
     send_action action_;
@@ -53,9 +53,9 @@ class seance : public std::enable_shared_from_this<seance>
 public:
     // Take ownership of the stream
 
-    seance(tcp::socket&& socket, std::shared_ptr<std::string const> const& doc_root) 
+    seance(tcp::socket&& socket, std::shared_ptr<const dict_t> const& dict) 
     : stream_(std::move(socket))
-    , doc_root_(doc_root)
+    , dict_(dict)
     , action_(*this)
     {
     }

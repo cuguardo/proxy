@@ -11,3 +11,4 @@ using EndPoint = struct Server
 };
 
 using EndPoints = std::vector<EndPoint>;
+
