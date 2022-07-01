@@ -19,15 +19,18 @@ void seance::run()
 
 void seance::do_read()
 {
-    // Make the request empty before reading,
-    // otherwise the operation behavior is undefined.
-    req_ = {};
-
+    // Construct a new parser for each message
+    parser_.emplace();
+    
+    // Apply a reasonable limit to the allowed size
+    // of the body in bytes to prevent abuse.
+    parser_->body_limit(65536);
+    
     // Set the timeout.
     stream_.expires_after(std::chrono::seconds(30));
 
     // Read a request
-    http::async_read(stream_, buffer_, req_, beast::bind_front_handler(&seance::on_read, shared_from_this()));
+    http::async_read(stream_, buffer_, *parser_, beast::bind_front_handler(&seance::on_read, shared_from_this()));
 }
 
 void seance::on_read(beast::error_code ec, std::size_t bytes_transferred)
@@ -42,7 +45,11 @@ void seance::on_read(beast::error_code ec, std::size_t bytes_transferred)
         return fail(ec, "read");
 
     // Send the response
-    handle_request(dict_, stream_.get_executor(), std::move(req_), action_);
+    handle_request(dict_, stream_.get_executor(), parser_->release(), queue_);
+    
+    // If we aren't at the queue limit, try to pipeline another request
+    if(! queue_.is_full())
+        do_read();
 }
 
 void seance::on_write(bool close, beast::error_code ec, std::size_t bytes_transferred)
@@ -59,11 +66,12 @@ void seance::on_write(bool close, beast::error_code ec, std::size_t bytes_transf
         return do_close();
     }
 
-    // We're done with the response so delete it
-    res_ = nullptr;
-
-    // Read another request
-    do_read();
+    // Inform the queue that a write completed
+    if(queue_.on_write())
+    {
+        // Read another request
+        do_read();
+    }
 }
 
 void seance::do_close()
@@ -75,3 +83,26 @@ void seance::do_close()
     // At this point the connection is closed gracefully
 }
 
+seance::queue::queue(seance& self)
+: self_(self)
+{
+    static_assert(limit > 0, "queue limit must be positive");
+}
+
+// Returns `true` if we have reached the queue limit
+bool seance::queue::is_full() const
+{
+    return items_.size() >= limit;
+}
+
+// Called when a message finishes sending
+// Returns `true` if the caller should initiate a read
+bool seance::queue::on_write()
+{
+    BOOST_ASSERT(!items_.empty());
+    auto const was_full = is_full();
+    items_.pop_front();
+    if (!items_.empty())
+        (*items_.front())();
+    return was_full;
+}

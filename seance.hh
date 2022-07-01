@@ -2,6 +2,7 @@
 
 #include "actor.hh"
 
+#include <deque>
 #include <memory>
 
 using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
@@ -10,45 +11,75 @@ using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 
 class seance : public std::enable_shared_from_this<seance>
 {
-    // This is the C++11 equivalent of a generic lambda.
-    // The function object is used to send an HTTP message.
+    // This queue is used for HTTP pipelining.
 
-    class send_action
+    class queue
     {
+        enum
+        {
+            // Maximum number of responses we will queue
+            limit = 8
+        };
+
+        // The type-erased, saved work item
+        struct work
+        {
+            virtual ~work() = default;
+            virtual void operator()() = 0;
+        };
+
         seance& self_;
+        std::deque<std::unique_ptr<work>> items_;
+
     public:
 
-        explicit send_action(seance& self) : self_(self)
-        {
-        }
+        explicit queue(seance& self);
 
+        // Returns `true` if we have reached the queue limit
+        bool is_full() const;
+
+        // Called when a message finishes sending
+        // Returns `true` if the caller should initiate a read
+        bool on_write();
+
+        // Called by the HTTP handler to send a response.
         template<bool isRequest, class Body, class Fields>
-        void operator()(http::message<isRequest, Body, Fields>&& msg) const
+        void operator()(http::message<isRequest, Body, Fields>&& msg)
         {
-            // The lifetime of the message has to extend
-            // for the duration of the async operation so
-            // we use a shared_ptr to manage it.
-            auto sp = std::make_shared<http::message<isRequest, Body, Fields> > (std::move(msg));
+            // This holds a work item
+            struct work_impl : work
+            {
+                seance& self_;
+                http::message<isRequest, Body, Fields> msg_;
 
-            // Store a type-erased version of the shared
-            // pointer in the class to keep it alive.
-            self_.res_ = sp;
+                work_impl(seance& self, http::message<isRequest, Body, Fields>&& msg)
+                : self_(self)
+                , msg_(std::move(msg))
+                {
+                }
 
-            // Write the response
-            http::async_write
-            ( self_.stream_
-            , *sp
-            , beast::bind_front_handler(&seance::on_write, self_.shared_from_this(), sp->need_eof())
-            );
+                void operator()()
+                {
+                    http::async_write(self_.stream_, msg_, beast::bind_front_handler(&seance::on_write, self_.shared_from_this(), msg_.need_eof()));
+                }
+            };
+
+            // Allocate and store the work
+            items_.push_back(boost::make_unique<work_impl>(self_, std::move(msg)));
+
+            // If there was no previous work, start this one
+            if (items_.size() == 1)
+                (*items_.front())();
         }
     };
 
     beast::tcp_stream stream_;
     beast::flat_buffer buffer_;
     std::shared_ptr<dict_t> dict_;
-    http::request<http::string_body> req_;
-    std::shared_ptr<void> res_;
-    send_action action_;
+    queue queue_;
+    // The parser is stored in an optional container so we can
+    // construct it from scratch it at the beginning of each new message.
+    boost::optional<http::request_parser<http::string_body>> parser_;
 
 public:
     // Take ownership of the stream
@@ -56,7 +87,7 @@ public:
     seance(tcp::socket&& socket, std::shared_ptr<dict_t> dict) 
     : stream_(std::move(socket))
     , dict_(dict)
-    , action_(*this)
+    , queue_(*this)
     {
     }
 

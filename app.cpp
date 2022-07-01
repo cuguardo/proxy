@@ -47,7 +47,7 @@ int main(int ac, char* av[])
         ("address,H", po::value<std::string>()->default_value("127.0.0.1"), "listening address")
         ("port,P", po::value<unsigned short>(&port)->default_value(8080), "listening port number")
         ("threads,T", po::value<unsigned short>()->default_value(1), "thread pool size")
-        ("rule,R", po::value<std::vector<std::string>>()->composing()->multitoken()->notifier(parse_rules), "rule definition")
+        ("rule,R", po::value<std::vector<std::string>>()->composing()->multitoken()->notifier(parse_rules), "rule definition in form <id>@<host>:<port>")
     ;
     
     po::options_description desc("Command line only options:");
