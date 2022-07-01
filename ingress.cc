@@ -2,7 +2,7 @@
 #include "seance.hh"
 #include "common.hh"
 
-listener::listener(net::io_context& ioc, tcp::endpoint endpoint, std::shared_ptr<const dict_t> const& dict)
+listener::listener(net::io_context& ioc, tcp::endpoint endpoint, std::shared_ptr<dict_t> dict)
 : ioc_(ioc)
 , acceptor_(net::make_strand(ioc))
 , dict_(dict)

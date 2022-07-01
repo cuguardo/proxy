@@ -2,7 +2,6 @@
 #include <boost/filesystem.hpp>
 #include <boost/regex.hpp>
 //#include <boost/config.hpp>
-//#include <algorithm>
 //#include <cstdlib>
 //#include <functional>
 //#include <memory>
@@ -36,8 +35,9 @@ int main(int ac, char* av[])
         for(auto rule = rules.begin(); rule != rules.end(); ++rule)
         {
             boost::smatch res;
-            if(boost::regex_match(*rule, res, re, boost::match_default))
-                (*dict)[res[1]] = dict_t::mapped_type(res[2], res[4].matched ? res[4].str() : std::string("http"));
+            if(boost::regex_match(*rule, res, re, boost::match_default)) //do not emplace but replace - a simplest duplication error avoidance
+                (*dict)[res[1]] = {res[2], res[4].matched ? res[4].str() : std::string("http"), stream_lnk()};
+                //dict->emplace(res[1], dict_t::mapped_type(res[2], res[4].matched ? res[4].str() : std::string("http"), stream_lnk()));
         }
     };
     
@@ -47,7 +47,7 @@ int main(int ac, char* av[])
         ("address,H", po::value<std::string>()->default_value("127.0.0.1"), "listening address")
         ("port,P", po::value<unsigned short>(&port)->default_value(8080), "listening port number")
         ("threads,T", po::value<unsigned short>()->default_value(1), "thread pool size")
-        ("rule,R", po::value<std::vector<std::string>>()->multitoken()->notifier(parse_rules), "rule definition")
+        ("rule,R", po::value<std::vector<std::string>>()->composing()->multitoken()->notifier(parse_rules), "rule definition")
     ;
     
     po::options_description desc("Command line only options:");
@@ -75,11 +75,9 @@ int main(int ac, char* av[])
     {
         std::clog << std::endl << "Rules:" << std::endl;
         for(auto itr = dict->begin(); itr != dict->end() ; ++itr)
-            std::clog << itr->first << " => " << itr->second.first << " " << itr->second.second << std::endl;
+            std::clog << itr->first << " => " << itr->second.addr << " " << itr->second.port << std::endl;
     }
     
-    //exit(0);
-   
     auto const address = net::ip::make_address(vm["address"].as<std::string>());
     auto const threads = std::max<unsigned short>(1, vm["threads"].as<unsigned short>());
     
