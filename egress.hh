@@ -1,10 +1,5 @@
 #pragma once
 
-#include <boost/system/detail/generic_category.hpp>
-
-
-#pragma once
-
 #include "common.hh"
 
 //#include <boost/asio.hpp>
@@ -32,18 +27,18 @@ public:
 };
 
 template<class Executor>
-stream_ptr summon_stream(std::shared_ptr<dict_t> dict, Executor ex, std::string& origin, beast::error_code& ec)
+stream_ptr summon_stream(std::shared_ptr<context_t> context, Executor ex, std::string& origin, beast::error_code& ec)
 {
     stream_ptr stream;
     do
     {
-        auto item = part_match(*dict, origin);
+        auto item = part_match(context, origin);
 
         // Handle the case where the target not matched on dictionary
-        if (item == dict->cend())
+        if (item == context->dict.cend())
         {
             ec.assign(EADDRNOTAVAIL, boost::system::generic_category());
-            std::cerr << "dict: not found" << std::endl;
+            std::cerr << "dict: not found [" << origin << "] " << std::endl;
             break;
         }
         
@@ -55,6 +50,8 @@ stream_ptr summon_stream(std::shared_ptr<dict_t> dict, Executor ex, std::string&
             if(stream && stream->socket().is_open())
                 break;
         }
+        if(context->swear)
+            std::clog << "PEER: " << item->second.addr << ":" << item->second.port << std::endl;
 
         // Look up the domain name
         tcp::resolver resolver(ex);
@@ -81,5 +78,5 @@ stream_ptr summon_stream(std::shared_ptr<dict_t> dict, Executor ex, std::string&
         item->second.peer = stream;
         
     } while(false);
-    return std::move(stream);
+    return stream;
 }

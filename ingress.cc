@@ -2,10 +2,10 @@
 #include "seance.hh"
 #include "common.hh"
 
-listener::listener(net::io_context& ioc, tcp::endpoint endpoint, std::shared_ptr<dict_t> dict)
+listener::listener(net::io_context& ioc, tcp::endpoint endpoint, std::shared_ptr<context_t> context)
 : ioc_(ioc)
 , acceptor_(net::make_strand(ioc))
-, dict_(dict)
+, context_(context)
 {
     beast::error_code ec;
 
@@ -68,7 +68,7 @@ listener::on_accept(beast::error_code ec, tcp::socket socket)
     else
     {
         // Create the seance and run it
-        std::make_shared<seance>(std::move(socket), dict_)->run();
+        std::make_shared<seance>(std::move(socket), context_)->run();
     }
 
     // Accept another connection

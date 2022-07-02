@@ -17,9 +17,9 @@ class listener : public std::enable_shared_from_this<listener>
 {
     net::io_context& ioc_;
     tcp::acceptor acceptor_;
-    std::shared_ptr<dict_t> dict_;
+    std::shared_ptr<context_t> context_;
 public:
-    listener(net::io_context& ioc, tcp::endpoint endpoint, std::shared_ptr<dict_t> dict);
+    listener(net::io_context& ioc, tcp::endpoint endpoint, std::shared_ptr<context_t> context);
     // Start accepting incoming connections
     void run();
 private:

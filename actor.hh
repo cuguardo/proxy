@@ -25,7 +25,7 @@ using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 // caller to pass a generic lambda for receiving the response.
 
 template<class Body, class Allocator, class Send, class Executor>
-void handle_request(std::shared_ptr<dict_t> dict, Executor ex, http::request<Body, http::basic_fields<Allocator>>&& req, Send&& send)
+void handle_request(std::shared_ptr<context_t> context, Executor ex, http::request<Body, http::basic_fields<Allocator>>&& req, Send&& send)
 {
     // Returns a bad request response
     auto const bad_request =
@@ -79,8 +79,9 @@ void handle_request(std::shared_ptr<dict_t> dict, Executor ex, http::request<Bod
     std::string dest(req.target());
     fs::path inbound(dest);
     beast::error_code ec;
-    std::clog << "INBOUND PATH=" << dest << std::endl;
-    stream_ptr stream = summon_stream(dict, ex, dest, ec);
+    if(context->swear)
+        std::clog << "INBOUND PATH=" << dest << std::endl;
+    stream_ptr stream = summon_stream(context, ex, dest, ec);
     
     if(ec)
     {
@@ -99,7 +100,8 @@ void handle_request(std::shared_ptr<dict_t> dict, Executor ex, http::request<Bod
         outbound.remove_filename();
     // Build the path to the target server
     req.target(outbound.generic_string());
-    std::clog << "OUTBOUND PATH=" << req.target() << std::endl;
+    if(context->swear)
+        std::clog << "OUTBOUND PATH=" << req.target() << std::endl;
    
     // Relay the HTTP request to the remote host
     http::write(*stream, req);

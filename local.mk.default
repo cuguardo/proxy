@@ -1,0 +1,6 @@
+ROOT := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
+ifeq ($(DEBUG),TRUE)
+ export DEBUG
+ DEBUG_LEVEL=3
+endif
+RHEL_VERSION = $(shell cat /etc/system-release-cpe |  grep -oP '^[^0-9]*\K[0-9]+')Server

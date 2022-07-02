@@ -21,4 +21,18 @@ struct peer_t
     mutable stream_lnk peer;
 };
 using dict_t = std::map<std::string, peer_t>;
-dict_t::const_iterator part_match(const dict_t& dictionary, const std::string& pattern);
+
+struct context_t
+{
+    std::string conf;
+    std::string addr;
+    unsigned short port;
+    unsigned short scale;
+    unsigned short queue;
+    unsigned short timeout;
+    unsigned int body;
+    short swear;
+    dict_t dict;
+};
+
+dict_t::const_iterator part_match(std::shared_ptr<context_t> context, const std::string& pattern);

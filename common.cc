@@ -16,8 +16,9 @@ void fail(beast::error_code ec, const char * const what)
     std::cerr << what << ": " << ec.message() << "\n";
 }
 
-dict_t::const_iterator part_match(const dict_t& dictionary, const std::string& pattern)
+dict_t::const_iterator part_match(std::shared_ptr<context_t> context, const std::string& pattern)
 {
+    dict_t &dictionary = context->dict;
     auto part = [](const fs::path& p, const fs::path& b) -> std::string
     {
         fs::path o;
@@ -28,21 +29,44 @@ dict_t::const_iterator part_match(const dict_t& dictionary, const std::string& p
         {
             if(e == p.end())
                 break;
-            o.append(*e++);
+            o /= *e++;
         }
         return o.generic_string();
     };
-    auto comparator = [part](const dict_t::value_type& testee, const dict_t::value_type& tester) -> bool
+    auto left = [part, context](const dict_t::value_type& testee, const dict_t::value_type& tester) -> bool
     {
-        return 0 < part(tester.first, testee.first).compare(testee.first);
+        std::string subpath = part(tester.first, testee.first);
+        int cmp = subpath.compare(testee.first);
+        if(context->swear > 1)
+            std::clog << "\tlocate left: " << testee.first << ( cmp ? cmp > 0 ? " < " : " > " : " = " ) << subpath << " [" << tester.first << "] " << std::endl;
+        return 0 < cmp;
+    };
+    auto right = [part, context](const dict_t::value_type& tester, const dict_t::value_type& testee) -> bool
+    {
+        std::string subpath = part(tester.first, testee.first);
+        int cmp = subpath.compare(testee.first);
+        if(context->swear > 1)
+            std::clog << "\tlocate right: " << testee.first << ( cmp ? cmp > 0 ? " < " : " > " : " = " ) << subpath << " [" << tester.first << "] " << std::endl;
+        return 0 < cmp;
     };
     const dict_t::value_type sample{ pattern, {} };
-    const auto range = std::equal_range(dictionary.cbegin(), dictionary.cend(), sample, comparator);
+    const auto range = std::make_pair(std::lower_bound(dictionary.cbegin(), dictionary.cend(), sample, left), std::upper_bound(dictionary.cbegin(), dictionary.cend(), sample, right));
+    auto ret = dictionary.cend();
     for(auto itr = range.first; itr != range.second; ++itr)
     {
-        if(itr == dictionary.cend() || part(pattern, itr->first).compare(itr->first))
-            continue;
-        return itr; 
+        if(itr == dictionary.cend())
+            break;
+        std::string subpath = part(pattern, itr->first);
+        int cmp = subpath.compare(itr->first);
+        if(context->swear > 1)
+            std::clog << "\tcompare: " << itr->first << ( cmp ? cmp > 0 ? " < " : " > " : " = " ) << subpath << " [" << pattern << "] " << std::endl;
+        if(cmp)
+        {
+            if(ret == dictionary.cend())
+                continue;
+            break;
+        }
+        ret = itr;
     }
-    return dictionary.cend();
+    return ret;
 }

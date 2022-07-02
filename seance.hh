@@ -15,12 +15,6 @@ class seance : public std::enable_shared_from_this<seance>
 
     class queue
     {
-        enum
-        {
-            // Maximum number of responses we will queue
-            limit = 8
-        };
-
         // The type-erased, saved work item
         struct work
         {
@@ -75,7 +69,7 @@ class seance : public std::enable_shared_from_this<seance>
 
     beast::tcp_stream stream_;
     beast::flat_buffer buffer_;
-    std::shared_ptr<dict_t> dict_;
+    std::shared_ptr<context_t> context_;
     queue queue_;
     // The parser is stored in an optional container so we can
     // construct it from scratch it at the beginning of each new message.
@@ -84,9 +78,9 @@ class seance : public std::enable_shared_from_this<seance>
 public:
     // Take ownership of the stream
 
-    seance(tcp::socket&& socket, std::shared_ptr<dict_t> dict) 
+    seance(tcp::socket&& socket, std::shared_ptr<context_t> context) 
     : stream_(std::move(socket))
-    , dict_(dict)
+    , context_(context)
     , queue_(*this)
     {
     }

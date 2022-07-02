@@ -24,10 +24,10 @@ void seance::do_read()
     
     // Apply a reasonable limit to the allowed size
     // of the body in bytes to prevent abuse.
-    parser_->body_limit(65536);
+    parser_->body_limit(context_->body);
     
     // Set the timeout.
-    stream_.expires_after(std::chrono::seconds(30));
+    stream_.expires_after(std::chrono::seconds(context_->timeout));
 
     // Read a request
     http::async_read(stream_, buffer_, *parser_, beast::bind_front_handler(&seance::on_read, shared_from_this()));
@@ -45,7 +45,7 @@ void seance::on_read(beast::error_code ec, std::size_t bytes_transferred)
         return fail(ec, "read");
 
     // Send the response
-    handle_request(dict_, stream_.get_executor(), parser_->release(), queue_);
+    handle_request(context_, stream_.get_executor(), parser_->release(), queue_);
     
     // If we aren't at the queue limit, try to pipeline another request
     if(! queue_.is_full())
@@ -86,13 +86,13 @@ void seance::do_close()
 seance::queue::queue(seance& self)
 : self_(self)
 {
-    static_assert(limit > 0, "queue limit must be positive");
+    assert(self_.context_->queue > 0); //queue limit must be positive
 }
 
 // Returns `true` if we have reached the queue limit
 bool seance::queue::is_full() const
 {
-    return items_.size() >= limit;
+    return items_.size() >= self_.context_->queue;
 }
 
 // Called when a message finishes sending
