@@ -34,5 +34,3 @@ struct context_t
     short swear;
     dict_t dict;
 };
-
-dict_t::const_iterator part_match(std::shared_ptr<context_t> context, const std::string& pattern);

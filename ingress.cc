@@ -43,7 +43,6 @@ listener::listener(net::io_context& ioc, tcp::endpoint endpoint, std::shared_ptr
 }
 
 // Start accepting incoming connections
-
 void
 listener::run()
 {
@@ -60,7 +59,7 @@ listener::do_accept()
 void
 listener::on_accept(beast::error_code ec, tcp::socket socket)
 {
-    if (ec)
+    if(ec)
     {
         fail(ec, "accept");
         return; // To avoid infinite loop

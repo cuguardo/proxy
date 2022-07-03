@@ -4,16 +4,13 @@
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/strand.hpp>
 
-namespace net = boost::asio; // from <boost/asio.hpp>
+namespace net = boost::asio;
 
 // Start the asynchronous operation
 
 void seance::run()
 {
-    // We need to be executing within a strand to perform async operations
-    // on the I/O objects in this seance. Although not strictly necessary
-    // for single-threaded contexts, this example code is written to be
-    // thread-safe by default.
+    // We need to be executing within a strand to perform async operations on the I/O objects in this seance
     net::dispatch(stream_.get_executor(), beast::bind_front_handler(&seance::do_read, shared_from_this()));
 }
 
@@ -45,7 +42,7 @@ void seance::on_read(beast::error_code ec, std::size_t bytes_transferred)
         return fail(ec, "read");
 
     // Send the response
-    handle_request(context_, stream_.get_executor(), parser_->release(), queue_);
+    handle_request(context_, stream_, parser_->release(), queue_);
     
     // If we aren't at the queue limit, try to pipeline another request
     if(! queue_.is_full())
@@ -79,7 +76,6 @@ void seance::do_close()
     // Send a TCP shutdown
     beast::error_code ec;
     stream_.socket().shutdown(tcp::socket::shutdown_send, ec);
-
     // At this point the connection is closed gracefully
 }
 

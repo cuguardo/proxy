@@ -3,30 +3,33 @@
 #include "common.hh"
 #include "egress.hh"
 
-//#include <boost/asio.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ip/host_name.hpp>
 #include <boost/beast/version.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/filesystem.hpp>
 
 #include <algorithm>
-//#include <memory>
 #include <iostream>
+#include <sstream>
 
-namespace beast = boost::beast; // from <boost/beast.hpp>
-namespace http = beast::http; // from <boost/beast/http.hpp>
+namespace beast = boost::beast;
+namespace http = beast::http;
 namespace fs = boost::filesystem;
-using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
+using tcp = boost::asio::ip::tcp;
+using msg_t = http::response<http::dynamic_body>;
+
+void homologate(std::shared_ptr<context_t> context, const std::string& id, msg_t& res, beast::error_code& ec);
 
 // This function produces an HTTP response for the given
 // request. The type of the response object depends on the
 // contents of the request, so the interface requires the
 // caller to pass a generic lambda for receiving the response.
-
-template<class Body, class Allocator, class Send, class Executor>
-void handle_request(std::shared_ptr<context_t> context, Executor ex, http::request<Body, http::basic_fields<Allocator>>&& req, Send&& send)
+template<class Body, class Allocator, class Send, class Stream>
+void handle_request(std::shared_ptr<context_t> context, Stream &cli, http::request<Body, http::basic_fields<Allocator>>&& req, Send&& send)
 {
+    typename Stream::executor_type ex(cli.get_executor());
     // Returns a bad request response
     auto const bad_request =
             [&req](beast::string_view why)
@@ -66,12 +69,16 @@ void handle_request(std::shared_ptr<context_t> context, Executor ex, http::reque
                 return res;
             };
     
-    // Make sure we can handle the method
-    //if (req.method() != http::verb::get &&
-    //        req.method() != http::verb::head)
-    //    return send(bad_request("Unsupported HTTP-method"));
-
-    
+    auto const about_req = 
+            [&req]()
+            {
+                for(auto i = req.begin(); i != req.end(); ++i)
+                {
+                    std::string a(i->name_string()), v(i->value());
+                    std::clog << "\t" << a << " = " << v << std::endl;
+                }
+            };
+            
     // Request path must be absolute and not contain "..".
     if (req.target().empty() || req.target().front() != '/')
         return send(bad_request("Illegal request-target"));
@@ -79,10 +86,9 @@ void handle_request(std::shared_ptr<context_t> context, Executor ex, http::reque
     std::string dest(req.target());
     fs::path inbound(dest);
     beast::error_code ec;
-    if(context->swear)
+    if(context->swear > 0)
         std::clog << "INBOUND PATH=" << dest << std::endl;
     stream_ptr stream = summon_stream(context, ex, dest, ec);
-    
     if(ec)
     {
         switch(ec.value())
@@ -93,6 +99,7 @@ void handle_request(std::shared_ptr<context_t> context, Executor ex, http::reque
             return send(server_error(ec.message()));
         }
     }
+    
     fs::path outbound = inbound.lexically_proximate(dest).lexically_normal();
     if(!outbound.has_root_directory())
         outbound = fs::path("/") / outbound;
@@ -100,11 +107,22 @@ void handle_request(std::shared_ptr<context_t> context, Executor ex, http::reque
         outbound.remove_filename();
     // Build the path to the target server
     req.target(outbound.generic_string());
-    if(context->swear)
+    if(context->swear > 0)
+    {
         std::clog << "OUTBOUND PATH=" << req.target() << std::endl;
-   
+        if(context->swear > 1)
+            about_req();
+    }
+    std::ostringstream buf("for=");
+    buf << cli.socket().remote_endpoint().address().to_string();
+    buf << ";host=" << stream->socket().remote_endpoint().address().to_string();
+    buf << ";proto=http, for=" << cli.socket().local_endpoint().address().to_string();
+    req.set(http::field::forwarded, buf.str());
+    
     // Relay the HTTP request to the remote host
-    http::write(*stream, req);
+    http::write(*stream, req, ec);
+    if(ec)
+        return send(server_error(ec.message()));
     
     // This buffer is used for reading and must be persisted
     beast::flat_buffer buffer;
@@ -113,7 +131,14 @@ void handle_request(std::shared_ptr<context_t> context, Executor ex, http::reque
     http::response<http::dynamic_body> res;
 
     // Receive the HTTP response
-    http::read(*stream, buffer, res);
+    http::read(*stream, buffer, res, ec);
+    if(ec)
+        return send(server_error(ec.message()));
+    
+    homologate(context, dest, res, ec);
+    if(ec)
+        return send(bad_request(ec.message()));
+   
     
     return send(std::move(res));
 }

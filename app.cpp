@@ -1,11 +1,7 @@
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/regex.hpp>
-//#include <boost/config.hpp>
-//#include <cstdlib>
-//#include <functional>
-//#include <memory>
-//#include <string>
+
 #include <thread>
 #include <vector>
 #include <forward_list>
@@ -16,10 +12,6 @@
 
 namespace po = boost::program_options;
 namespace fs = boost::filesystem;
-//namespace beast = boost::beast;         // from <boost/beast.hpp>
-//namespace http = beast::http;           // from <boost/beast/http.hpp>
-//namespace net = boost::asio;            // from <boost/asio.hpp>
-//using tcp = boost::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
 
 int main(int ac, char* av[])
 {
@@ -32,7 +24,12 @@ int main(int ac, char* av[])
         {
             boost::smatch res;
             if(boost::regex_match(*rule, res, re, boost::match_default)) //do not emplace but replace - a simplest duplication error avoidance
-                context->dict[res[1]] = {res[2], res[4].matched ? res[4].str() : std::string("http"), stream_lnk()};
+            {
+                std::string id(res[1]);
+                if('/' != id[0])
+                    id.insert(0, 1, '/');
+                context->dict[id] = {res[2], res[4].matched ? res[4].str() : std::string("http"), stream_lnk()};
+            }
         }
     };
     
@@ -69,7 +66,7 @@ int main(int ac, char* av[])
         return EXIT_SUCCESS;
     }
 
-    if(context->swear)
+    if(context->swear > 0)
     {
         std::clog << std::endl << "Rules:" << std::endl;
         for(auto itr = context->dict.begin(); itr != context->dict.end() ; ++itr)
@@ -84,15 +81,12 @@ int main(int ac, char* av[])
 
     // Create and launch a listening port
     std::make_shared<listener>(ioc, tcp::endpoint{address, context->port}, context)->run();
-
        
     // Run the I/O service on the requested number of threads
     std::forward_list<std::thread> workers;
     for(auto cnt = 1; cnt < context->scale; ++cnt)
         workers.emplace_front( [&ioc] { ioc.run(); } );
     ioc.run();
-    
-    
     
     return EXIT_SUCCESS;
 }

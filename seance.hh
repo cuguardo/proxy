@@ -5,14 +5,12 @@
 #include <deque>
 #include <memory>
 
-using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
+using tcp = boost::asio::ip::tcp;
 
 // Handles an HTTP proxy server connection
-
 class seance : public std::enable_shared_from_this<seance>
 {
     // This queue is used for HTTP pipelining.
-
     class queue
     {
         // The type-erased, saved work item

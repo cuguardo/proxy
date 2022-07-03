@@ -2,20 +2,17 @@
 
 #include "common.hh"
 
-//#include <boost/asio.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/version.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 
 #include <algorithm>
-//#include <memory>
 #include <iostream>
 
-namespace beast = boost::beast; // from <boost/beast.hpp>
-namespace http = beast::http; // from <boost/beast/http.hpp>
-//namespace net = boost::asio; // from <boost/asio.hpp>
-using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
+namespace beast = boost::beast;
+namespace http = beast::http;
+using tcp = boost::asio::ip::tcp;
 
 class shutdown_graceful
 {
@@ -25,6 +22,8 @@ public:
     shutdown_graceful(std::ostream& output) : buf(output.rdbuf()) {}
     void operator()(beast::tcp_stream* ptr) noexcept;
 };
+
+dict_t::const_iterator part_match(std::shared_ptr<context_t> context, const std::string& pattern);
 
 template<class Executor>
 stream_ptr summon_stream(std::shared_ptr<context_t> context, Executor ex, std::string& origin, beast::error_code& ec)
@@ -38,7 +37,8 @@ stream_ptr summon_stream(std::shared_ptr<context_t> context, Executor ex, std::s
         if (item == context->dict.cend())
         {
             ec.assign(EADDRNOTAVAIL, boost::system::generic_category());
-            std::cerr << "dict: not found [" << origin << "] " << std::endl;
+            if(context->swear > 0)
+                std::cerr << "dict: not found [" << origin << "] " << std::endl;
             break;
         }
         
@@ -50,7 +50,7 @@ stream_ptr summon_stream(std::shared_ptr<context_t> context, Executor ex, std::s
             if(stream && stream->socket().is_open())
                 break;
         }
-        if(context->swear)
+        if(context->swear > 0)
             std::clog << "PEER: " << item->second.addr << ":" << item->second.port << std::endl;
 
         // Look up the domain name
@@ -59,7 +59,8 @@ stream_ptr summon_stream(std::shared_ptr<context_t> context, Executor ex, std::s
         if(ec)
         {
             stream.reset();
-            std::cerr << "resolve: " << ec.message() << std::endl;
+            if(context->swear > 0)
+                std::cerr << "resolve: " << ec.message() << std::endl;
             break;
         }
 
@@ -71,7 +72,8 @@ stream_ptr summon_stream(std::shared_ptr<context_t> context, Executor ex, std::s
         if(ec)
         {
             stream.reset();
-            std::cerr << "connect: " << ec.message() << std::endl;
+            if(context->swear > 0)
+                std::cerr << "connect: " << ec.message() << std::endl;
             break;
         }
         
